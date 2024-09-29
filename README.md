@@ -7,7 +7,7 @@ It is a REALLY fast password cracker made with python! It is made for pentests w
 | grass | 09d440e487d45777c05c3a6552ad9154 | 05b8c74cbd96fbf2de4c1a352702fbf4 | False
 
 The output will be this:
-```shell
+```zsh
 yeetic@DESKTOP-BJ6KRG9:~/wildfire$ python3 wildfire.py hashes.txt wordlist.txt --hash-format md5
 [!] Cracking...
 [+] Done!
