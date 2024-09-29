@@ -20,3 +20,6 @@ hash file: hashes.txt
 ```
 
 It does not show the password that was failed to get decrypted
+
+## How do i install it?
+Install the installer by [./install.py](by clicking this fancy blue text)
