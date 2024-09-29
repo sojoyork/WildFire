@@ -1,68 +1,87 @@
 import hashlib
-import argparse
-import crypt
+import itertools
+import string
+import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
 
-def hash_word(word, hash_format):
-    if hash_format == 'md5':
-        return hashlib.md5(word.encode()).hexdigest()
-    elif hash_format == 'sha1':
-        return hashlib.sha1(word.encode()).hexdigest()
-    elif hash_format == 'sha256':
-        return hashlib.sha256(word.encode()).hexdigest()
-    elif hash_format == 'crypt':
-        return crypt.crypt(word, crypt.mksalt(crypt.METHOD_SHA256))  # You can specify other methods too
-    else:
-        raise ValueError(f"Unsupported hash format: {hash_format}")
+# List of supported hash functions
+SUPPORTED_HASHES = {
+    "md5": hashlib.md5,
+    "sha1": hashlib.sha1,
+    "sha224": hashlib.sha224,
+    "sha256": hashlib.sha256,
+    "sha384": hashlib.sha384,
+    "sha512": hashlib.sha512
+}
 
-def wildfire(password_hashes, wordlist, hash_format='md5'):
-    found_passwords = {}
+def hash_string(s, hash_type):
+    """Calculate hash of the string using the specified hash type"""
+    hash_func = SUPPORTED_HASHES.get(hash_type)
+    if not hash_func:
+        raise ValueError(f"Unsupported hash type: {hash_type}")
+    return hash_func(s.encode()).hexdigest()
 
-    for word in wordlist:
-        hashed_word = hash_word(word.strip(), hash_format)
-        if hashed_word in password_hashes:
-            found_passwords[word.strip()] = hashed_word
+def find_hash_match(target_hash, hash_type, length, start, end):
+    """Find a matching hash within a given range of characters."""
+    chars = string.ascii_lowercase
+    for combination in itertools.islice(itertools.product(chars, repeat=length), start, end):
+        candidate = ''.join(combination)
+        if hash_string(candidate, hash_type) == target_hash:
+            return candidate
+    return None
 
-    return found_passwords
+def worker(task_queue, result_queue, target_hash, hash_type, length):
+    """Worker function for multiprocessing to find hash matches."""
+    while not task_queue.empty():
+        try:
+            start, end = task_queue.get_nowait()
+            match = find_hash_match(target_hash, hash_type, length, start, end)
+            if match:
+                result_queue.put(match)
+                return
+        except queue.Empty:
+            return
 
-def load_password_hashes(file_path):
-    with open(file_path, 'r') as file:
-        return {line.strip() for line in file}
+def parallel_brute_force(target_hash, hash_type, length, num_processes):
+    """Use multiprocessing and multithreading to brute-force find a matching hash."""
+    chars = string.ascii_lowercase
+    total_combinations = len(chars) ** length
+    chunk_size = total_combinations // num_processes
 
-def main():
-    parser = argparse.ArgumentParser(description='Password Cracker Tool (Wildfire)')
-    parser.add_argument('hash_file', help='File containing password hashes (one per line)')
-    parser.add_argument('wordlist_file', help='File containing the wordlist (one word per line)')
-    parser.add_argument('--hash-format', choices=['md5', 'sha1', 'sha256', 'crypt'], default='md5',
-                        help='Specify the hash format (default: md5)')
+    task_queue = multiprocessing.Queue()
+    result_queue = multiprocessing.Queue()
 
-    args = parser.parse_args()
+    # Creating tasks for each process
+    for i in range(0, total_combinations, chunk_size):
+        task_queue.put((i, min(i + chunk_size, total_combinations)))
 
-    # Load password hashes from the provided file
-    password_hashes = load_password_hashes(args.hash_file)
+    processes = []
+    for _ in range(num_processes):
+        p = multiprocessing.Process(target=worker, args=(task_queue, result_queue, target_hash, hash_type, length))
+        processes.append(p)
+        p.start()
 
-    # Load the wordlist
-    with open(args.wordlist_file, 'r') as file:
-        wordlist = file.readlines()
+    # We also use threads to manage multiple processing tasks
+    with ThreadPoolExecutor() as executor:
+        futures = [executor.submit(p.join) for p in processes]
+        for future in futures:
+            future.result()  # Wait for each process to complete
 
-    # Output initial cracking message
-    print("[!] Cracking...")
-
-    # Run the wildfire cracker
-    cracked_passwords = wildfire(password_hashes, wordlist, args.hash_format)
-
-    # Output completion message
-    print("[+] Done!")
-    print("=========================")
-    print(f"wordlist: {args.wordlist_file}")
-    print(f"hash file: {args.hash_file}")
-    print("=========================")
-
-    # Display results
-    if cracked_passwords:
-        for password, hashed in cracked_passwords.items():
-            print(f"[+] Password: {password}")
-    else:
-        print("No passwords were cracked.")
+    # Check if a match was found
+    if not result_queue.empty():
+        return result_queue.get()
+    return None
 
 if __name__ == "__main__":
-    main()
+    # Example usage:
+    target_hash = "5d41402abc4b2a76b9719d911017c592"  # Example for "hello" with MD5
+    hash_type = "md5"
+    length = 5  # Length of the word we're trying to find
+    num_processes = 4  # Number of processes to use
+
+    # This will run the brute-force attack
+    result = parallel_brute_force(target_hash, hash_type, length, num_processes)
+    if result:
+        print(f"Match found: {result}")
+    else:
+        print("No match found.")
