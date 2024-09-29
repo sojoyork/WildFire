@@ -2,7 +2,7 @@ import os
 import subprocess
 import sys
 
-GITHUB_REPO_URL = "https://github.com/yourusername/yourrepo.git"  # Replace with your repository URL
+GITHUB_REPO_URL = "https://github.com/sojoyork/WildFire.git"  # Replace with your repository URL
 
 def install_default():
     print("\n[+] Installing WildFire (Default)...")
