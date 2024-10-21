@@ -22,4 +22,4 @@ hash file: hashes.txt
 It does not show the password that was failed to get decrypted
 
 ## How do i install it?
-Install the installer by installing <a href="link/to/your/download/file" download>Installer</a>
+Install the installer by installing <a href="install.py" download>Installer</a>
